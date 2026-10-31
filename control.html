@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8"><title>Kontrol EA · QUANTUM ROBOTICK</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Manrope:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#060A1E;--card:rgba(20,28,64,.78);--bd:rgba(86,200,255,.18);--tx:#e8efff;--mu:#8a98c4;--cy:#56C8FF;--up:#3BE3A2;--dn:#FF5F7E;--go:#F3C64F;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% 0,#1b3a8a,#060A1E 60%);color:var(--tx);font:15px Manrope,sans-serif;display:flex;justify-content:center;padding:20px}
+.wrap{width:min(440px,100%)}
+h1{font:700 24px 'Chakra Petch',sans-serif;letter-spacing:2px;margin:6px 0 4px}
+.sub{color:var(--mu);margin:0 0 18px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:18px;margin-bottom:14px}
+label{display:block;color:var(--mu);font-size:13px;margin:0 0 6px}
+input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--bd);background:rgba(128,140,180,.1);color:var(--tx);font:inherit;font-size:16px;margin-bottom:14px}
+input:focus-visible,button:focus-visible{outline:2px solid var(--cy);outline-offset:2px}
+.state{display:flex;align-items:center;gap:10px;font:700 20px 'Chakra Petch',sans-serif;margin:0 0 4px}
+.dot{width:12px;height:12px;border-radius:50%;background:var(--mu)}
+.on .dot{background:var(--up);box-shadow:0 0 10px var(--up)}.off .dot{background:var(--dn)}
+.note{color:var(--mu);font-size:13px;margin:0}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+button{font:700 16px 'Chakra Petch',sans-serif;padding:14px;border-radius:12px;border:1px solid transparent;cursor:pointer;color:#04122b}
+#bStart{background:var(--up)}#bStop{background:var(--dn)}
+#bCek{grid-column:1/-1;background:transparent;color:var(--cy);border-color:var(--bd)}
+button:disabled{opacity:.5;cursor:wait}
+#msg{min-height:20px;margin-top:12px;font-size:14px}
+@media(prefers-reduced-motion:no-preference){.dot{transition:background .3s,box-shadow .3s}}
+</style></head><body>
+<div class="wrap">
+ <h1>KONTROL EA</h1>
+ <p class="sub">QUANTUM ROBOTICK · hidupkan atau matikan EA dari web</p>
+ <div class="card">
+  <label for="acc">ID MT5</label>
+  <input id="acc" inputmode="numeric" pattern="[0-9]*" maxlength="20" autocomplete="off" placeholder="contoh: 12345678">
+  <label for="key">Kunci kontrol</label>
+  <input id="key" type="password" autocomplete="off" placeholder="diketik setiap kali, tidak disimpan">
+  <div class="btns">
+   <button id="bStart" type="button">Start EA</button>
+   <button id="bStop" type="button">Stop EA</button>
+   <button id="bCek" type="button">Cek status</button>
+  </div>
+  <div id="msg" role="status"></div>
+ </div>
+ <div class="card" id="st">
+  <div class="state"><span class="dot"></span><span id="stT">Belum dicek</span></div>
+  <p class="note" id="stN">Tekan Cek status untuk membaca perintah terakhir di server.</p>
+ </div>
+ <p class="note">Status di atas adalah perintah yang tersimpan di server. EA di MT5 belum membaca perintah ini, jadi tombol belum menghidupkan atau mematikan EA sungguhan.</p>
+</div>
+<script>
+const $=i=>document.getElementById(i),RX=/^\d{1,20}$/;
+function say(t,c){const m=$('msg');m.textContent=t;m.style.color=c||'var(--mu)'}
+function show(en,at){const s=$('st');s.className='card '+(en?'on':'off');$('stT').textContent=en?'Perintah: START':'Perintah: STOP';
+ $('stN').textContent=at?'Disimpan '+new Date(at).toLocaleString('id-ID',{timeZone:'Asia/Jakarta'})+' WIB':'Belum ada perintah untuk akun ini (dianggap STOP).'}
+function check(){const a=$('acc').value.trim(),k=$('key').value;if(!RX.test(a)){say('Isi ID MT5 dengan angka.','var(--dn)');return null}if(!k){say('Isi kunci kontrol.','var(--dn)');return null}return{a,k}}
+async function call(method,body){const v=check();if(!v)return;
+ document.querySelectorAll('button').forEach(b=>b.disabled=true);say('Menghubungi server…');
+ try{const r=await fetch('/api/control'+(method=='GET'?'?account='+encodeURIComponent(v.a):''),{method,cache:'no-store',headers:{'x-control-key':v.k,'Content-Type':'application/json'},body:method=='POST'?JSON.stringify({account:v.a,enabled:body}):undefined});
+  if(r.status==401){say('Kunci kontrol salah.','var(--dn)');return}
+  if(!r.ok){say('Server menolak (kode '+r.status+').','var(--dn)');return}
+  const j=await r.json();
+  if(method=='POST'){say(body?'Perintah START tersimpan.':'Perintah STOP tersimpan.','var(--up)');show(body,new Date().toISOString())}
+  else{say('Status terbaca.','var(--up)');show(j.enabled,j.updated_at)}
+ }catch(e){say('Gagal menghubungi server. Periksa koneksi.','var(--dn)')}
+ finally{document.querySelectorAll('button').forEach(b=>b.disabled=false)}}
+$('bStart').onclick=()=>call('POST',true);$('bStop').onclick=()=>call('POST',false);$('bCek').onclick=()=>call('GET');
+</script></body></html>
